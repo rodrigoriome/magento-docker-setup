@@ -7,10 +7,10 @@ set -e
 # --------------------------------------------------------------------------------------------------
 
 __SCRIPT__="$0"
-__MAGE_ROOT__="$(pwd)"
 
-# __MAGE_ROOT__="__MAGENTO__ROOT__"
+# To setup this script, run the following command. Othewise use "$(pwd)" (with quotes).
 # sed -i -e "s|__MAGENTO__ROOT__|$(pwd)|" bin/sh
+__MAGE_ROOT__="__MAGENTO__ROOT__"
 
 # resolve Magento root directory
 if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
@@ -18,7 +18,7 @@ if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
 fi
 
 if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
-    echo "Not on Magento root"
+    echo "Magento root not found"
     exit 1
 fi
 
