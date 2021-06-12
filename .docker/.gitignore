@@ -1,0 +1,6 @@
+# SSL keys
+*.pem
+
+.DS_Store
+.env*
+!.env*.sample

@@ -1,0 +1,53 @@
+version: "3"
+
+services:
+  nginx:
+    # Host mounts with performance penalty. You might wanna put only what is necessary here.
+    volumes: &appvolumes
+      - ..:/var/www/html # Mount entire source directory by default
+      - ./nginx/conf/default.conf:/etc/nginx/conf.d/default.conf # Mount NGINX default conf for quick tweaks
+      # - ~/.ssh/id_rsa:/var/www/.ssh/id_rsa:cached # Mount your SSH
+      - ./ssl:/root/.local/share/mkcert # Mount SSL certificates
+
+  phpfpm:
+    volumes: *appvolumes
+
+  database:
+    ports:
+      - "${MYSQL_PORT}:3306"
+
+  elasticsearch:
+    ports:
+      - "${ELASTICSEARCH_NODE_PORT}:9200"
+      - "${ELASTICSEARCH_REST_PORT}:9300"
+
+  redis:
+    ports:
+      - "${REDIS_PAGE_CACHE_PORT}:6379"
+
+  redis_session:
+    ports:
+      - "${REDIS_BACKEND_CACHE_PORT}:6379"
+
+  phpmyadmin:
+    container_name: "magento_phpmyadmin"
+    image: "phpmyadmin/phpmyadmin"
+    ports:
+      - "${PMA_PORT}:80"
+    volumes:
+      - ./phpmyadmin/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php
+      - ./phpmyadmin/phpmyadmin.ini:/var/www/usr/local/etc/php/conf.d/phpmyadmin.ini
+    environment:
+      - PMA_HOST=database
+      - PMA_USER=root
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    depends_on:
+      - database
+
+  mailhog:
+    container_name: "magento_mailhog"
+    image: "mailhog/mailhog"
+    ports:
+      - "${MAILHOG_SMTP_PORT}:1025"
+      - "${MAILHOG_HTTP_PORT}:8025"

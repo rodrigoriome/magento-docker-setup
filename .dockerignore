@@ -1,0 +1,4 @@
+# This file must be in context root
+
+node_modules
+vendor

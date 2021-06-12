@@ -1,0 +1,590 @@
+#!/bin/sh
+
+set -e
+
+# --------------------------------------------------------------------------------------------------
+# BOOTSTRAP
+# --------------------------------------------------------------------------------------------------
+
+__SCRIPT__="$0"
+__MAGE_ROOT__="$(pwd)"
+
+# __MAGE_ROOT__="__MAGENTO__ROOT__"
+# sed -i -e "s|__MAGENTO__ROOT__|$(pwd)|" bin/sh
+
+# resolve Magento root directory
+if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
+    __MAGE_ROOT__="$(realpath "$(dirname "$(dirname "$__SCRIPT__")")")"
+fi
+
+if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
+    echo "Not on Magento root"
+    exit 1
+fi
+
+DOCKER_DIR_NAME=".docker"
+DOCKER_DIR="${__MAGE_ROOT__}/${DOCKER_DIR_NAME}"
+DOCKER_SERVICE_NGINX="nginx"
+DOCKER_SERVICE_PHP="phpfpm"
+DOCKER_SERVICE_REDIS="redis"
+DOCKER_SERVICE_REDIS_SESSION="redis_session"
+
+# import env vars
+. "$DOCKER_DIR/.env"
+
+# define colors
+COLOR_DEFAULT=$(tput sgr0)
+
+COLOR_BLACK=$(tput setaf 0)
+print_black() {
+    echo "${COLOR_BLACK}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_RED=$(tput setaf 1)
+print_red() {
+    echo "${COLOR_RED}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_GREEN=$(tput setaf 2)
+print_green() {
+    echo "${COLOR_GREEN}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_YELLOW=$(tput setaf 3)
+print_yellow() {
+    echo "${COLOR_YELLOW}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_BLUE=$(tput setaf 4)
+print_blue() {
+    echo "${COLOR_BLUE}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_MAGENTA=$(tput setaf 5)
+print_magenta() {
+    echo "${COLOR_MAGENTA}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_CYAN=$(tput setaf 6)
+print_cyan() {
+    echo "${COLOR_CYAN}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_WHITE=$(tput setaf 7)
+print_white() {
+    echo "${COLOR_WHITE}${1}${COLOR_DEFAULT}"
+}
+
+COLOR_GRAY=$(tput setaf 8)
+print_gray() {
+    echo "${COLOR_GRAY}${1}${COLOR_DEFAULT}"
+}
+
+debug_colors() {
+    print_black "Hello, world!"
+    print_red "Hello, world!"
+    print_green "Hello, world!"
+    print_yellow "Hello, world!"
+    print_blue "Hello, world!"
+    print_magenta "Hello, world!"
+    print_cyan "Hello, world!"
+    print_white "Hello, world!"
+    print_gray "Hello, world!"
+}
+
+# --------------------------------------------------------------------------------------------------
+# HELPERS
+# --------------------------------------------------------------------------------------------------
+
+print_dev_alert() {
+    print_yellow "YOU ARE NOT in development mode. Do you wish to proceed? [Yn]"
+
+    while true; do
+        local yn
+        read yn
+        case $yn in
+        [Yy]*) break ;;
+        [Nn]*) exit ;;
+        *) echo "Please answer yes or no." ;;
+        esac
+    done
+}
+
+print_info() {
+    echo "\n${COLOR_BLUE}[ info ]${COLOR_DEFAULT} $1\n"
+}
+
+print_err() {
+    echo "\n${COLOR_RED}[ error ]${COLOR_DEFAULT} $1\n"
+}
+
+# --------------------------------------------------------------------------------------------------
+# COMMANDS
+# --------------------------------------------------------------------------------------------------
+
+cmd_bootstrap() {
+    cmd_cli -t "php -d memory_limit=-1 /usr/local/bin/composer -vvv --no-progress --profile update"
+    cmd_cli -rt "npm i -g grunt-cli"
+    cmd_cli -t "npm i grunt"
+}
+
+cmd_cli() {
+    local service="$DOCKER_SERVICE_PHP"
+    local args=""
+
+    print_cmd_usage() {
+        echo "\nUsage: sh cli [options] '<command>'"
+        echo "Options:"
+        echo "  -h, --help        Show this help message"
+        echo "  -t, --notty       Run in notty mode"
+        echo "  -s, --service     Specify in which Docker service to run"
+        echo "  -r, --root        Run as root user"
+    }
+
+    if [ -z "$1" ]; then
+        echo "\nPlease specify a CLI command (ex. ls)"
+        print_cmd_usage
+        exit
+    fi
+
+    local params="$(getopt -o hrts: -l help,root,notty,service: --name "$0" -- "$@")"
+    eval set -- "$params"
+    while true; do
+        case "$1" in
+        -h | --help)
+            print_cmd_usage
+            shift
+            exit
+            ;;
+        -r | --root)
+            args="$args -u root"
+            shift
+            ;;
+        -t | --notty)
+            args="$args -T"
+            shift
+            ;;
+        -s | --service)
+            service="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            exit 1
+            ;;
+        esac
+    done
+
+    cmd_docker exec "${args} ${service}" $@
+}
+
+cmd_composer() {
+    cmd_cli "composer $@"
+}
+
+cmd_grunt() {
+    if [ -z "$1" ]; then
+        cmd_cli "grunt exec"
+        cmd_cli "grunt less"
+        cmd_cli "grunt deploy"
+        cmd_cli "grunt watch"
+    else
+        cmd_cli "grunt exec:$@"
+        cmd_cli "grunt less:$@"
+        cmd_cli "grunt watch:$@"
+    fi
+}
+
+cmd_n98() {
+    cmd_cli "n98-magerun2.phar $@"
+}
+
+cmd_node() {
+    cmd_cli "node $@"
+}
+
+cmd_npm() {
+    cmd_cli "npm $@"
+}
+
+cmd_cron_sevice_start() {
+    cmd_cli -r "service cron start &&
+        touch /var/www/html/var/.setup_cronjob_status /var/www/html/var/.update_cronjob_status &&
+        chown www-app:www-app /var/www/html/var/.setup_cronjob_status /var/www/html/var/.update_cronjob_status &&
+        /usr/bin/crontab"
+}
+
+cmd_db_query() {
+    if [ -t 0 ]; then
+        # Need tty to run mysql shell
+        cmd_cli "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $@"
+    else
+        # Read from stdin, ex: bin/mysql < dbdump.sql
+        cmd_cli -t "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $@"
+    fi
+}
+
+cmd_db_dump() {
+    cmd_n98 "db:dump --stdout $@"
+}
+
+cmd_docker() {
+    if [ $APP_ENV = "development" ]; then
+        # temporarily merge envs
+        cat "$DOCKER_DIR/.env" >>"$DOCKER_DIR/.env.temp"
+        cat "$DOCKER_DIR/.env.dev" >>"$DOCKER_DIR/.env.temp"
+
+        sleep 1
+
+        docker-compose \
+            --file "$DOCKER_DIR/docker-compose.yml" \
+            --file "$DOCKER_DIR/docker-compose.dev.yml" \
+            --env-file "$DOCKER_DIR/.env.temp" \
+            $@
+
+        rm -f "$DOCKER_DIR/.env.temp"
+    else
+        docker-compose \
+            --file "$DOCKER_DIR/docker-compose.yml" \
+            --env-file "$DOCKER_DIR/.env" \
+            $@
+    fi
+}
+
+cmd_docker_start() {
+    cmd_docker up -d --remove-orphans "$@"
+    echo
+    cmd_print_details
+}
+
+cmd_docker_stop() {
+    cmd_docker stop "$@"
+}
+
+cmd_docker_restart() {
+    cmd_docker_stop "$@"
+    cmd_docker_start "$@"
+}
+
+cmd_fs_owners() {
+    print_info "Fixing file system ownerships..."
+
+    if [ -z "$1" ]; then
+        cmd_cli -rt "chown -R www-app:www-app /var/www/"
+    else
+        cmd_cli -rt "chown -R www-app:www-app /var/www/html/$1"
+    fi
+
+    print_info "File system ownerships fixed"
+}
+
+cmd_fs_perms() {
+    print_info "Fixing file system permissions..."
+
+    if [ -z "$1" ]; then
+        cmd_cli -rt "find var vendor pub/static pub/media app/etc ( -type f -or -type d ) -exec chmod 775 {} +"
+        cmd_cli -rt "chmod u+x bin/magento"
+    else
+        cmd_cli -rt "find "$1" ( -type f -or -type d ) -exec chmod u+w {} +"
+    fi
+
+    print_info "File system permissions fixed"
+}
+
+cmd_magento_bin() {
+    cmd_cli "bin/magento "$@""
+}
+
+cmd_magento_setup() {
+
+    # CHECK IF MAGENTO IS ALREADY INTALLED
+    if [ ! "$(docker ps -a | grep "$DOCKER_SERVICE_PHP")" ]; then
+        print_err "No container found for PHP service. Please run 'bin/start'"
+        exit 1
+    fi
+
+    if cmd_cli "ls /var/www/html/app/etc" | grep "env.php" >/dev/null 2>&1; then
+        print_err "File 'app/etc/env.php' already exists!"
+        exit 1
+    fi
+
+    # INSTALL MAGENTO THROUGH CLI
+    print_info "Installing Magento, please wait..."
+    cmd_cli -t "bin/magento setup:install \
+        --base-url=$MAGE_INSTALL_BASE_URL \
+        --base-url-secure=$MAGE_INSTALL_BASE_URL_SECURE \
+        --use-secure=$MAGE_INSTALL_USE_SECURE \
+        --use-secure-admin=$MAGE_INSTALL_USE_SECURE_ADMIN \
+        --db-host=database \
+        --db-name=$MYSQL_DATABASE \
+        --db-user=$MYSQL_USER \
+        --db-password=$MYSQL_PASSWORD \
+        --admin-firstname=$MAGE_ADMIN_FIRSTNAME \
+        --admin-lastname=$MAGE_ADMIN_LASTNAME \
+        --admin-email=$MAGE_ADMIN_EMAIL \
+        --admin-user=$MAGE_ADMIN_USER \
+        --admin-password=$MAGE_ADMIN_PASSWORD \
+        --admin-use-security-key=$MAGE_ADMIN_USE_SECURITY_KEY \
+        --language=$MAGE_INSTALL_LANGUAGE \
+        --currency=$MAGE_INSTALL_CURRENCY \
+        --timezone=$MAGE_INSTALL_TIMEZONE \
+        --use-rewrites=$MAGE_INSTALL_USE_REWRITES \
+        --backend-frontname=$MAGE_INSTALL_BACKEND_FRONTNAME \
+        --elasticsearch-host=elasticsearch"
+
+    # COMPILE SETUP DI
+    # cmd_cli -t "bin/magento setup:di:compile"
+
+    # SETUP REDIS
+    print_info "Enabling Redis, please wait..."
+    cmd_cli -t "bin/magento setup:config:set \
+        --no-interaction \
+        --cache-backend=redis \
+        --cache-backend-redis-server="$DOCKER_SERVICE_REDIS_SESSION" \
+        --cache-backend-redis-port=6379 \
+        --cache-backend-redis-db=1 \
+        --page-cache=redis \
+        --page-cache-redis-server="$DOCKER_SERVICE_REDIS" \
+        --page-cache-redis-port=6379 \
+        --page-cache-redis-db=2"
+
+    # SETUP CRON
+    print_info "Enabling Cron, please wait..."
+    cmd_cli -t "bin/magento cron:install" || true
+
+    # CONFIGURE INDEX MODE
+    print_info "Setting reindex mode to schedule..."
+    cmd_cli -t "bin/magento indexer:set-mode schedule"
+    cmd_cli -t "bin/magento indexer:reindex"
+
+    # PRINT SUCCESS MESSAGE
+    print_info "Magento was successfully installed!"
+    cmd_print_details
+}
+
+# TODO: Add help message showing the possibility of providing an specific extension
+cmd_magento_test() {
+    if [ -z "$1" ]; then
+        cmd_cli -t "/var/www/html/vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist app/code"
+    else
+        cmd_cli -t "/var/www/html/vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist app/code/$@/Test"
+    fi
+}
+
+cmd_opcache_enable() {
+    cmd_cli "sed -i -e s/^\;zend_extension/zend_extension/g /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini"
+    sleep 1
+    cmd_docker_restart "$DOCKER_SERVICE_PHP"
+    print_info "OPcache has been enabled"
+}
+
+cmd_opcache_disable() {
+    cmd_cli "sed -i -e s/^zend_extension/\;zend_extension/g /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini"
+    sleep 1
+    cmd_docker_restart "$DOCKER_SERVICE_PHP"
+    print_info "OPcache has been disabled"
+}
+
+cmd_redis_flush() {
+    cmd_cli -s "$DOCKER_SERVICE_REDIS" "redis-cli FLUSHALL"
+    cmd_cli -s "$DOCKER_SERVICE_REDIS_SESSION" "redis-cli FLUSHALL"
+    print_info "Redis cache cleaned"
+}
+
+cmd_ssl_install() {
+    print_info "Command not yet implemented"
+
+    # if [ -z "$1" ]; then
+    #     print_err "Please specify a domain (ex. mydomain.test)"
+    #     exit 1
+    # fi
+
+    # # Generate a new local CA "/root/.local/share/mkcert"
+    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mkcert -install"
+
+    # Read the CA install for requested hostname
+    # if ! cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "cat /root/.local/share/mkcert/rootCA.pem" | grep -q 'BEGIN CERTIFICATE'; then
+    #     # Copy SSL CA to local machine
+
+    #     docker cp $(bin/docker ps -q nginx|awk '{print $1}'):/root/.local/share/mkcert/rootCA.pem .
+    #     echo "System password requested to install certificate authority on host..."
+
+    #     if [ "$(uname)" == "Darwin" ]; then
+    #         sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.pem
+    #         rm rootCA.pem
+    #     else
+    #         sudo mv rootCA.pem /usr/local/share/ca-certificates/rootCA.pem
+    #         sudo update-ca-certificates
+    #     fi
+    # fi
+
+    # # Generate the certificate for the specified domain
+    # print_info "Moving key and cert to /etc/nginx/certs/..."
+    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mkcert -key-file nginx.key -cert-file nginx.crt $@"
+    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "chown www-app:www-app nginx.key nginx.crt"
+    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mv nginx.key nginx.crt /etc/nginx/certs/"
+
+    # # Restart nginx to apply the updates
+    # print_info "Restarting containers to apply updates..."
+    # cmd_docker_restart
+}
+
+cmd_xdebug_enable() {
+    cmd_cli "sed -i -e s/^\;zend_extension/zend_extension/g /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini"
+    sleep 1
+    cmd_docker_restart "$DOCKER_SERVICE_PHP"
+    print_info "Xdebug has been enabled."
+}
+
+cmd_xdebug_disable() {
+    cmd_cli "sed -i -e s/^zend_extension/\;zend_extension/g /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini"
+    sleep 1
+    cmd_docker_restart "$DOCKER_SERVICE_PHP"
+    print_info "Xdebug has been disabled."
+}
+
+cmd_print_details() {
+    local frontend_addr="Frontend:       $MAGE_INSTALL_BASE_URL"
+    local admin_addr="Admin:          ${MAGE_INSTALL_BASE_URL}/${MAGE_INSTALL_BACKEND_FRONTNAME}"
+    local admin_user="Admin user:     ${MAGE_ADMIN_USER}"
+    local admin_pass="Admin password: ${MAGE_ADMIN_PASSWORD}"
+
+    local longest=0
+
+    if [ ${#frontend_addr} -gt $longest ]; then longest=${#frontend_addr}; fi
+    if [ ${#admin_addr} -gt $longest ]; then longest=${#admin_addr}; fi
+    if [ ${#admin_user} -gt $longest ]; then longest=${#admin_user}; fi
+    if [ ${#admin_pass} -gt $longest ]; then longest=${#admin_pass}; fi
+
+    local padding=4
+
+    char_repeat() {
+        for i in $(seq 1 $2); do echo -n "$1"; done
+    }
+
+    print_body() {
+        local diff="$(expr $longest - ${#1})"
+
+        echo "│$(char_repeat " " $padding)${1}$(char_repeat " " $diff)$(char_repeat " " $padding)│"
+    }
+
+    echo -n '╭'
+    char_repeat "─" $(expr ${longest} + 2 \* ${padding})
+    echo "╮"
+    print_body
+    print_body "$frontend_addr"
+    print_body "$admin_addr"
+    print_body "$admin_user"
+    print_body "$admin_pass"
+    print_body
+    echo -n '╰'
+    char_repeat "─" $(expr ${longest} + 2 \* ${padding})
+    echo "╯"
+}
+
+# --------------------------------------------------------------------------------------------------
+# MAIN
+# --------------------------------------------------------------------------------------------------
+
+print_help() {
+    describe_cmd() {
+        echo "  ${COLOR_GREEN}$1${COLOR_GRAY}          $2${COLOR_DEFAULT}"
+    }
+
+    describe_div() {
+        print_yellow "\n$1"
+    }
+
+    describe_div "Available commands"
+    describe_cmd "help              " "Show this help message"
+    describe_cmd "bootstrap         " "Prepare application for proper execution"
+    describe_cmd "cli               " "Exec commands in Docker services"
+    describe_cmd "composer          " "Run composer commands"
+    describe_cmd "grunt             " "Run grunt commands"
+    describe_cmd "n98               " "Run n98 commands"
+    describe_cmd "node              " "Run node commands"
+    describe_cmd "npm               " "Run npm commands"
+
+    describe_div "cron"
+    describe_cmd "cron:service:start" "Start cron service"
+
+    describe_div "db"
+    describe_cmd "db:query          " "Run MySQL query"
+    describe_cmd "db:dump           " "Dump database through Magerun98"
+
+    describe_div "docker"
+    describe_cmd "docker            " "Run docker-compose using appropiate config"
+    describe_cmd "docker:start      " "Start docker containers"
+    describe_cmd "docker:stop       " "Stop docker containers"
+    describe_cmd "docker:restart    " "Restart docker containers"
+
+    describe_div "fs"
+    describe_cmd "fs:owners         " "Fix file system ownership"
+    describe_cmd "fs:perms          " "Fix file system permissions"
+
+    describe_div "magento"
+    describe_cmd "magento:bin       " "Run the Magento helper CLI tool"
+    describe_cmd "magento:setup     " "Setup Magento application"
+    describe_cmd "magento:test      " "Run Magento tests"
+
+    describe_div "opcache"
+    describe_cmd "opcache:enable    " "Enable OPcache"
+    describe_cmd "opcache:disable   " "Disable OPcache"
+
+    describe_div "redis"
+    describe_cmd "redis:flush       " "Clean Redis data (FLUSHALL)"
+
+    describe_div "ssl"
+    describe_cmd "ssl:install       " "To be defined..."
+
+    describe_div "xdebug"
+    describe_cmd "xdebug:enable     " "Enable Xdebug"
+    describe_cmd "xdebug:disable    " "Disable Xdebug"
+}
+
+main() {
+    local COMMAND="$1"
+
+    if [ -n "$COMMAND" ]; then
+        shift
+    fi
+
+    case "$COMMAND" in
+    "help") print_help ;;
+    "bootstrap") cmd_bootstrap ;;
+    "cli") cmd_cli "$@" ;;
+    "composer") cmd_composer "$@" ;;
+    "grunt") cmd_grunt "$@" ;;
+    "n98") cmd_n98 "$@" ;;
+    "node") cmd_node "$@" ;;
+    "npm") cmd_npm "$@" ;;
+
+    "cron:service:start") cmd_cron_sevice_start ;;
+    "db:query") cmd_db_query "$@" ;;
+    "db:dump") cmd_db_dump "$@" ;;
+    "docker") cmd_docker "$@" ;;
+    "docker:start") cmd_docker_start "$@" ;;
+    "docker:stop") cmd_docker_stop "$@" ;;
+    "docker:restart") cmd_docker_restart "$@" ;;
+    "fs:owners") cmd_fs_owners "$@" ;;
+    "fs:perms") cmd_fs_perms "$@" ;;
+    "magento:bin") cmd_magento_bin "$@" ;;
+    "magento:setup") cmd_magento_setup ;;
+    "magento:test") cmd_magento_test "$@" ;;
+    "opcache:enable") cmd_opcache_enable ;;
+    "opcache:disable") cmd_opcache_disable ;;
+    "redis:flush") cmd_redis_flush ;;
+    "ssl:install") cmd_ssl_install "$@" ;;
+    "xdebug:enable") cmd_xdebug_enable ;;
+    "xdebug:disable") cmd_xdebug_disable ;;
+    *)
+        print_help
+        exit 1
+        ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,65 @@
+version: "3"
+
+services:
+  nginx:
+    container_name: "magento_nginx"
+    build:
+      context: ..
+      dockerfile: .docker/nginx/Dockerfile
+    ports:
+      - "${HTTP_PORT}:8000"
+      - "${HTTP_SSL_PORT}:8443"
+    volumes: &appvolumes
+      - ~/.composer:/var/www/.composer
+      - appdata:/var/www/html
+      - sockdata:/sock
+      - ssldata:/etc/nginx/certs
+    depends_on:
+      - database
+      - phpfpm
+      - redis
+      - redis_session
+
+  phpfpm:
+    container_name: "magento_php"
+    build:
+      context: ..
+      dockerfile: .docker/phpfpm/Dockerfile
+    env_file: .env
+    volumes: *appvolumes
+
+  database:
+    container_name: "magento_db"
+    image: "mariadb:10.4"
+    volumes:
+      - dbdata:/var/lib/mysql
+    env_file: .env
+    restart: always
+
+  elasticsearch:
+    container_name: "magento_elasticsearch"
+    image: "elasticsearch:7.6.2"
+    environment:
+      - bootstrap.memory_lock=true
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearchdata:/usr/share/elasticsearch/data
+
+  redis:
+    container_name: "magento_redis"
+    image: "redis:6.0.9"
+
+  redis_session:
+    container_name: "magento_redis_session"
+    image: "redis:6.0.9"
+
+volumes:
+  appdata:
+  dbdata:
+  elasticsearchdata:
+  sockdata:
+  ssldata:
