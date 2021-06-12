@@ -1,5 +1,15 @@
 # Magento 2 Docker Setup
 
+### Usage
+
+`cd` into the Magento root then run the following command:
+
+```sh
+$ npx degit rodrigoriome/magento-docker-setup -f && sed -i -e "s|__MAGENTO__ROOT__|$(pwd)|" bin/sh
+```
+
+This will download the files of this repo into your project, putting files at their respective paths, and then set Magento root dir in the script (`./bin/sh`).
+
 ### Stack
 
 - NGINX 1.18
@@ -16,19 +26,6 @@
 
 - docker
 - docker-compose
-
-### How to use
-
-- Clone this repository
-- Put your Magento application on `./magento` folder
-- Configure your enviroment variables on `.env`. Possible variables are listed on `.env.sample`
-- TBD...
-
-### Panels
-
-- Web server: http://localhost
-- PHPMyAdmin: http://localhost:8080
-- Mailhog: http://localhost:8025
 
 ### Troubleshoot
 
