@@ -124,14 +124,11 @@ print_err() {
 
 cmd_bootstrap() {
     cmd_cli -t "php -d memory_limit=-1 /usr/local/bin/composer -vvv --no-progress --profile update"
-    cmd_cli -rt "npm i -g grunt-cli"
+    cmd_cli -r -t "npm i -g grunt-cli"
     cmd_cli -t "npm i grunt"
 }
 
 cmd_cli() {
-    local service="$DOCKER_SERVICE_PHP"
-    local args=""
-
     print_cmd_usage() {
         echo "\nUsage: sh cli [options] '<command>'"
         echo "Options:"
@@ -147,38 +144,41 @@ cmd_cli() {
         exit
     fi
 
-    local params="$(getopt -o hrts: -l help,root,notty,service: --name "$0" -- "$@")"
-    eval set -- "$params"
-    while true; do
+    local service="$DOCKER_SERVICE_PHP"
+    local opts=""
+    local params=""
+
+    while (( "$#" )); do
         case "$1" in
-        -h | --help)
+            -h|--help)
             print_cmd_usage
             shift
             exit
             ;;
-        -r | --root)
-            args="$args -u root"
+            -r|--root)
+                opts="$opts -u root"
             shift
             ;;
-        -t | --notty)
-            args="$args -T"
+            -t|--notty)
+                opts="$opts -T"
             shift
             ;;
-        -s | --service)
+            -s|--service)
             service="$2"
             shift 2
             ;;
-        --)
-            shift
-            break
+            -*|--*)
+                echo "Error: Unsupported flag $1" >&2
+                exit 1
             ;;
         *)
-            exit 1
+                params="$params $1"
+                shift
             ;;
         esac
     done
 
-    cmd_docker exec "${args} ${service}" $@
+    cmd_docker exec "$opts $service $params"
 }
 
 cmd_composer() {
@@ -273,9 +273,9 @@ cmd_fs_owners() {
     print_info "Fixing file system ownerships..."
 
     if [ -z "$1" ]; then
-        cmd_cli -rt "chown -R www-app:www-app /var/www/"
+        cmd_cli -r -t "chown -R www-app:www-app /var/www/"
     else
-        cmd_cli -rt "chown -R www-app:www-app /var/www/html/$1"
+        cmd_cli -r -t "chown -R www-app:www-app /var/www/html/$1"
     fi
 
     print_info "File system ownerships fixed"
@@ -285,10 +285,10 @@ cmd_fs_perms() {
     print_info "Fixing file system permissions..."
 
     if [ -z "$1" ]; then
-        cmd_cli -rt "find var vendor pub/static pub/media app/etc ( -type f -or -type d ) -exec chmod 775 {} +"
-        cmd_cli -rt "chmod u+x bin/magento"
+        cmd_cli -r -t "find var vendor pub/static pub/media app/etc ( -type f -or -type d ) -exec chmod 775 {} +"
+        cmd_cli -r -t "chmod u+x bin/magento"
     else
-        cmd_cli -rt "find "$1" ( -type f -or -type d ) -exec chmod u+w {} +"
+        cmd_cli -r -t "find "$1" ( -type f -or -type d ) -exec chmod u+w {} +"
     fi
 
     print_info "File system permissions fixed"
