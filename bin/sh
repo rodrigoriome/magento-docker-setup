@@ -397,39 +397,7 @@ cmd_redis_flush() {
 cmd_ssl_install() {
     print_info "Command not yet implemented"
 
-    # if [ -z "$1" ]; then
-    #     print_err "Please specify a domain (ex. mydomain.test)"
-    #     exit 1
-    # fi
-
-    # # Generate a new local CA "/root/.local/share/mkcert"
-    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mkcert -install"
-
-    # Read the CA install for requested hostname
-    # if ! cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "cat /root/.local/share/mkcert/rootCA.pem" | grep -q 'BEGIN CERTIFICATE'; then
-    #     # Copy SSL CA to local machine
-
-    #     docker cp $(bin/docker ps -q nginx|awk '{print $1}'):/root/.local/share/mkcert/rootCA.pem .
-    #     echo "System password requested to install certificate authority on host..."
-
-    #     if [ "$(uname)" == "Darwin" ]; then
-    #         sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.pem
-    #         rm rootCA.pem
-    #     else
-    #         sudo mv rootCA.pem /usr/local/share/ca-certificates/rootCA.pem
-    #         sudo update-ca-certificates
-    #     fi
-    # fi
-
-    # # Generate the certificate for the specified domain
-    # print_info "Moving key and cert to /etc/nginx/certs/..."
-    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mkcert -key-file nginx.key -cert-file nginx.crt $@"
-    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "chown www-app:www-app nginx.key nginx.crt"
-    # cmd_cli --notty --root --service $DOCKER_SERVICE_NGINX "mv nginx.key nginx.crt /etc/nginx/certs/"
-
-    # # Restart nginx to apply the updates
-    # print_info "Restarting containers to apply updates..."
-    # cmd_docker_restart
+    # TODO: Implement command
 }
 
 cmd_xdebug_enable() {
