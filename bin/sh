@@ -151,30 +151,30 @@ cmd_cli() {
     while (( "$#" )); do
         case "$1" in
             -h|--help)
-            print_cmd_usage
-            shift
-            exit
-            ;;
+                print_cmd_usage
+                shift
+                exit
+                ;;
             -r|--root)
                 opts="$opts -u root"
-            shift
-            ;;
+                shift
+                ;;
             -t|--notty)
                 opts="$opts -T"
-            shift
-            ;;
+                shift
+                ;;
             -s|--service)
-            service="$2"
-            shift 2
-            ;;
+                service="$2"
+                shift 2
+                ;;
             -*|--*)
                 echo "Error: Unsupported flag $1" >&2
                 exit 1
-            ;;
-        *)
+                ;;
+            *)
                 params="$params $1"
                 shift
-            ;;
+                ;;
         esac
     done
 
@@ -430,27 +430,28 @@ cmd_print_details() {
     local padding=4
 
     char_repeat() {
-        for i in $(seq 1 $2); do echo -n "$1"; done
+        if [ ! "$2" -eq "0" ]; then
+            for i in $(seq 1 ${2}); do printf "$1"; done
+        fi
     }
 
     print_body() {
         local diff="$(expr $longest - ${#1})"
-
-        echo "│$(char_repeat " " $padding)${1}$(char_repeat " " $diff)$(char_repeat " " $padding)│"
+        printf "│$(char_repeat " " $padding)${1}$(char_repeat " " $diff)$(char_repeat " " $padding)│\n"
     }
 
-    echo -n '╭'
-    char_repeat "─" $(expr ${longest} + 2 \* ${padding})
-    echo "╮"
+    printf '╭'
+    char_repeat "─" $(expr ${longest} + $(expr 2 \* ${padding}))
+    printf "╮\n"
     print_body
-    print_body "$frontend_addr"
-    print_body "$admin_addr"
-    print_body "$admin_user"
-    print_body "$admin_pass"
+    print_body "${frontend_addr}"
+    print_body "${admin_addr}"
+    print_body "${admin_user}"
+    print_body "${admin_pass}"
     print_body
-    echo -n '╰'
-    char_repeat "─" $(expr ${longest} + 2 \* ${padding})
-    echo "╯"
+    printf '╰'
+    char_repeat "─" $(expr ${longest} + $(expr 2 \* ${padding}))
+    printf "╯\n"
 }
 
 # --------------------------------------------------------------------------------------------------
