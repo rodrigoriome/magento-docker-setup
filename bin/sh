@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -23,7 +23,7 @@ if [ ! -f "$__MAGE_ROOT__/bin/magento" ]; then
 fi
 
 DOCKER_DIR_NAME=".docker"
-DOCKER_DIR="${__MAGE_ROOT__}/${DOCKER_DIR_NAME}"
+DOCKER_DIR="$__MAGE_ROOT__/$DOCKER_DIR_NAME"
 DOCKER_SERVICE_NGINX="nginx"
 DOCKER_SERVICE_PHP="phpfpm"
 DOCKER_SERVICE_REDIS="redis"
@@ -37,47 +37,47 @@ COLOR_DEFAULT=$(tput sgr0)
 
 COLOR_BLACK=$(tput setaf 0)
 print_black() {
-    echo "${COLOR_BLACK}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_BLACK}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_RED=$(tput setaf 1)
 print_red() {
-    echo "${COLOR_RED}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_RED}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_GREEN=$(tput setaf 2)
 print_green() {
-    echo "${COLOR_GREEN}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_GREEN}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_YELLOW=$(tput setaf 3)
 print_yellow() {
-    echo "${COLOR_YELLOW}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_YELLOW}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_BLUE=$(tput setaf 4)
 print_blue() {
-    echo "${COLOR_BLUE}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_BLUE}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_MAGENTA=$(tput setaf 5)
 print_magenta() {
-    echo "${COLOR_MAGENTA}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_MAGENTA}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_CYAN=$(tput setaf 6)
 print_cyan() {
-    echo "${COLOR_CYAN}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_CYAN}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_WHITE=$(tput setaf 7)
 print_white() {
-    echo "${COLOR_WHITE}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_WHITE}${1}${COLOR_DEFAULT}\n"
 }
 
 COLOR_GRAY=$(tput setaf 8)
 print_gray() {
-    echo "${COLOR_GRAY}${1}${COLOR_DEFAULT}"
+    printf "${COLOR_GRAY}${1}${COLOR_DEFAULT}\n"
 }
 
 debug_colors() {
@@ -101,7 +101,7 @@ print_dev_alert() {
 
     while true; do
         local yn
-        read yn
+        read -r yn
         case $yn in
         [Yy]*) break ;;
         [Nn]*) exit ;;
@@ -111,11 +111,11 @@ print_dev_alert() {
 }
 
 print_info() {
-    echo "\n${COLOR_BLUE}[ info ]${COLOR_DEFAULT} $1\n"
+    printf "\n${COLOR_BLUE}[ info ]${COLOR_DEFAULT} $1\n"
 }
 
 print_err() {
-    echo "\n${COLOR_RED}[ error ]${COLOR_DEFAULT} $1\n"
+    printf "\n${COLOR_RED}[ error ]${COLOR_DEFAULT} $1\n"
 }
 
 # --------------------------------------------------------------------------------------------------
@@ -130,19 +130,13 @@ cmd_bootstrap() {
 
 cmd_cli() {
     print_cmd_usage() {
-        echo "\nUsage: sh cli [options] '<command>'"
+        printf "\nUsage: sh cli [options] '<command>'\n"
         echo "Options:"
         echo "  -h, --help        Show this help message"
         echo "  -t, --notty       Run in notty mode"
         echo "  -s, --service     Specify in which Docker service to run"
         echo "  -r, --root        Run as root user"
     }
-
-    if [ -z "$1" ]; then
-        echo "\nPlease specify a CLI command (ex. ls)"
-        print_cmd_usage
-        exit
-    fi
 
     local service="$DOCKER_SERVICE_PHP"
     local opts=""
@@ -167,7 +161,7 @@ cmd_cli() {
                 service="$2"
                 shift 2
                 ;;
-            -*|--*)
+            --*|-*)
                 echo "Error: Unsupported flag $1" >&2
                 exit 1
                 ;;
@@ -178,11 +172,17 @@ cmd_cli() {
         esac
     done
 
+    if [ -z "$params" ]; then
+        printf "\nPlease specify a CLI command (ex. ls)\n"
+        print_cmd_usage
+        exit
+    fi
+
     cmd_docker exec "$opts $service $params"
 }
 
 cmd_composer() {
-    cmd_cli "composer $@"
+    cmd_cli "composer" "$*"
 }
 
 cmd_grunt() {
@@ -192,22 +192,22 @@ cmd_grunt() {
         cmd_cli "grunt deploy"
         cmd_cli "grunt watch"
     else
-        cmd_cli "grunt exec:$@"
-        cmd_cli "grunt less:$@"
-        cmd_cli "grunt watch:$@"
+        cmd_cli "grunt exec:$*"
+        cmd_cli "grunt less:$*"
+        cmd_cli "grunt watch:$*"
     fi
 }
 
 cmd_n98() {
-    cmd_cli "n98-magerun2.phar $@"
+    cmd_cli "n98-magerun2.phar $*"
 }
 
 cmd_node() {
-    cmd_cli "node $@"
+    cmd_cli "node $*"
 }
 
 cmd_npm() {
-    cmd_cli "npm $@"
+    cmd_cli "npm $*"
 }
 
 cmd_cron_sevice_start() {
@@ -220,19 +220,19 @@ cmd_cron_sevice_start() {
 cmd_db_query() {
     if [ -t 0 ]; then
         # Need tty to run mysql shell
-        cmd_cli "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $@"
+        cmd_cli "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $*"
     else
         # Read from stdin, ex: bin/mysql < dbdump.sql
-        cmd_cli -t "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $@"
+        cmd_cli -t "mysql -h${MYSQL_HOST} -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE} $*"
     fi
 }
 
 cmd_db_dump() {
-    cmd_n98 "db:dump --stdout $@"
+    cmd_n98 "db:dump --stdout $*"
 }
 
 cmd_docker() {
-    if [ $APP_ENV = "development" ]; then
+    if [ "$APP_ENV" = "development" ]; then
         # temporarily merge envs
         cat "$DOCKER_DIR/.env" >>"$DOCKER_DIR/.env.temp"
         cat "$DOCKER_DIR/.env.dev" >>"$DOCKER_DIR/.env.temp"
@@ -243,14 +243,14 @@ cmd_docker() {
             --file "$DOCKER_DIR/docker-compose.yml" \
             --file "$DOCKER_DIR/docker-compose.dev.yml" \
             --env-file "$DOCKER_DIR/.env.temp" \
-            $@
+            "$@"
 
         rm -f "$DOCKER_DIR/.env.temp"
     else
         docker-compose \
             --file "$DOCKER_DIR/docker-compose.yml" \
             --env-file "$DOCKER_DIR/.env" \
-            $@
+            "$@"
     fi
 }
 
@@ -288,20 +288,19 @@ cmd_fs_perms() {
         cmd_cli -r -t "find var vendor pub/static pub/media app/etc ( -type f -or -type d ) -exec chmod 775 {} +"
         cmd_cli -r -t "chmod u+x bin/magento"
     else
-        cmd_cli -r -t "find "$1" ( -type f -or -type d ) -exec chmod u+w {} +"
+        cmd_cli -r -t "find $1 ( -type f -or -type d ) -exec chmod u+w {} +"
     fi
 
     print_info "File system permissions fixed"
 }
 
 cmd_magento_bin() {
-    cmd_cli "bin/magento "$@""
+    cmd_cli "bin/magento" "$@"
 }
 
 cmd_magento_setup() {
-
     # CHECK IF MAGENTO IS ALREADY INTALLED
-    if [ ! "$(docker ps -a | grep "$DOCKER_SERVICE_PHP")" ]; then
+    if ! "$(docker ps -a | grep -q $DOCKER_SERVICE_PHP)"; then
         print_err "No container found for PHP service. Please run 'bin/start'"
         exit 1
     fi
@@ -343,11 +342,11 @@ cmd_magento_setup() {
     cmd_cli -t "bin/magento setup:config:set \
         --no-interaction \
         --cache-backend=redis \
-        --cache-backend-redis-server="$DOCKER_SERVICE_REDIS_SESSION" \
+        --cache-backend-redis-server=$DOCKER_SERVICE_REDIS_SESSION \
         --cache-backend-redis-port=6379 \
         --cache-backend-redis-db=1 \
         --page-cache=redis \
-        --page-cache-redis-server="$DOCKER_SERVICE_REDIS" \
+        --page-cache-redis-server=$DOCKER_SERVICE_REDIS \
         --page-cache-redis-port=6379 \
         --page-cache-redis-db=2"
 
@@ -370,7 +369,7 @@ cmd_magento_test() {
     if [ -z "$1" ]; then
         cmd_cli -t "/var/www/html/vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist app/code"
     else
-        cmd_cli -t "/var/www/html/vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist app/code/$@/Test"
+        cmd_cli -t "/var/www/html/vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist app/code/$*/Test"
     fi
 }
 
@@ -422,26 +421,27 @@ cmd_print_details() {
 
     local longest=0
 
-    if [ ${#frontend_addr} -gt $longest ]; then longest=${#frontend_addr}; fi
-    if [ ${#admin_addr} -gt $longest ]; then longest=${#admin_addr}; fi
-    if [ ${#admin_user} -gt $longest ]; then longest=${#admin_user}; fi
-    if [ ${#admin_pass} -gt $longest ]; then longest=${#admin_pass}; fi
+    if [ ${#frontend_addr} -gt "$longest" ]; then longest=${#frontend_addr}; fi
+    if [ ${#admin_addr} -gt "$longest" ]; then longest=${#admin_addr}; fi
+    if [ ${#admin_user} -gt "$longest" ]; then longest=${#admin_user}; fi
+    if [ ${#admin_pass} -gt "$longest" ]; then longest=${#admin_pass}; fi
 
     local padding=4
 
     char_repeat() {
         if [ ! "$2" -eq "0" ]; then
-            for i in $(seq 1 ${2}); do printf "$1"; done
+            for _ in $(seq 1 "$2"); do printf "$1"; done
         fi
     }
 
     print_body() {
-        local diff="$(expr $longest - ${#1})"
+        local diff
+        diff="$(( longest - ${#1} ))"
         printf "│$(char_repeat " " $padding)${1}$(char_repeat " " $diff)$(char_repeat " " $padding)│\n"
     }
 
     printf '╭'
-    char_repeat "─" $(expr ${longest} + $(expr 2 \* ${padding}))
+    char_repeat "─" "$(( longest + $(( 2 * padding )) ))"
     printf "╮\n"
     print_body
     print_body "${frontend_addr}"
@@ -450,7 +450,7 @@ cmd_print_details() {
     print_body "${admin_pass}"
     print_body
     printf '╰'
-    char_repeat "─" $(expr ${longest} + $(expr 2 \* ${padding}))
+    char_repeat "─" "$(( longest + $(( 2 * padding )) ))"
     printf "╯\n"
 }
 
