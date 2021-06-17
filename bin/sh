@@ -239,18 +239,20 @@ cmd_docker() {
 
         sleep 1
 
+        # shellcheck disable=SC2068
         docker-compose \
             --file "$DOCKER_DIR/docker-compose.yml" \
             --file "$DOCKER_DIR/docker-compose.dev.yml" \
             --env-file "$DOCKER_DIR/.env.temp" \
-            "$@"
+            $@
 
         rm -f "$DOCKER_DIR/.env.temp"
     else
+        # shellcheck disable=SC2068
         docker-compose \
             --file "$DOCKER_DIR/docker-compose.yml" \
             --env-file "$DOCKER_DIR/.env" \
-            "$@"
+            $@
     fi
 }
 
