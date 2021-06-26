@@ -302,7 +302,7 @@ cmd_magento_bin() {
 
 cmd_magento_setup() {
     # CHECK IF MAGENTO IS ALREADY INTALLED
-    if ! "$(docker ps -a | grep -q $DOCKER_SERVICE_PHP)"; then
+    if ! docker ps -a | grep -q $DOCKER_SERVICE_PHP; then
         print_err "No container found for PHP service. Please run 'bin/start'"
         exit 1
     fi
